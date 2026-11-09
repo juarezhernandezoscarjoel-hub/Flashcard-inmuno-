@@ -313,17 +313,30 @@
     falsas cambien y no te aprendas cuáles sobran: toma algunas de sus propias
     incorrectas y, si la pregunta tiene grupo, mezcla respuestas de otras preguntas del grupo.
   */
+  // Entre varios distractores del mismo tipo, prefiere los de largo parecido a la
+  // respuesta correcta, para que esta no destaque por ser la más larga o la más corta.
+  function cercaDeLargo(lista, objetivo, cuantas) {
+    return shuffle(lista.slice())
+      .sort(function (a, b) { return Math.abs(a.length - objetivo) - Math.abs(b.length - objetivo); })
+      .slice(0, cuantas);
+  }
+
   function armarOpciones(q) {
     var usadas = [clave(q.correcta)].concat(q.excluir);
     var libre = function (o) { return usadas.indexOf(clave(o)) < 0; };
-    var propias = shuffle(q.incorrectas.filter(libre));
-    var ajenas = shuffle(unicas((FALSAS[q.grupo] || []).filter(function (o) {
+    var lc = q.correcta.length;
+    var propias = q.incorrectas.filter(libre);
+    var ajenas = unicas((FALSAS[q.grupo] || []).filter(function (o) {
       return libre(o) && q.incorrectas.map(clave).indexOf(clave(o)) < 0;
-    })));
+    }));
     var nAjenas = Math.floor(Math.random() * (Math.min(propias.length ? 2 : 3, ajenas.length) + 1));
-    var malas = ajenas.slice(0, nAjenas);
-    malas = malas.concat(propias.slice(0, 3 - malas.length));
-    malas = malas.concat(ajenas.slice(nAjenas, nAjenas + 3 - malas.length));
+    // Toma algo de variedad (propias y ajenas), eligiendo las de largo más cercano a la correcta.
+    var malas = cercaDeLargo(ajenas, lc, nAjenas);
+    malas = malas.concat(cercaDeLargo(propias, lc, 3 - malas.length));
+    if (malas.length < 3) {
+      var resto = ajenas.filter(function (o) { return malas.indexOf(o) < 0; });
+      malas = malas.concat(cercaDeLargo(resto, lc, 3 - malas.length));
+    }
     return shuffle([q.correcta].concat(malas));
   }
 
