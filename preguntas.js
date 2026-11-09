@@ -6,9 +6,10 @@
 
     {
       apartado: "Morfología",      // Ej.: Morfología, Funcionamiento, Consecuencias...
+      grupo: "Hongos",             // Opcional (ver abajo)
       pregunta: "Texto de la pregunta",
       correcta: "La respuesta correcta",
-      incorrectas: ["Opción mala 1", "Opción mala 2", "Opción mala 3"],
+      incorrectas: ["Opción mala 1", "Opción mala 2", "Opción mala 3", "Opción mala 4"],
       explicacion: "Opcional: se muestra después de responder.",
       imagen: "img/mi-imagen.jpg"   // Opcional: si no hay, se usa el dibujo del tema.
     },
@@ -16,6 +17,14 @@
   Las opciones se revuelven solas cada vez, así que no importa el orden.
   "apartado" sirve para que cada estación a veces se enfoque en un tipo de
   pregunta (por ejemplo, solo Morfología) y a veces las mezcle.
+
+  Las opciones falsas cambian cada vez que sale la pregunta:
+  - Puedes poner más de 3 "incorrectas"; cada vez se eligen 3 al azar.
+  - "grupo" junta preguntas cuyas respuestas son del mismo tipo (por ejemplo,
+    "Hongos", "Células", "Inmunoglobulinas"). Las respuestas correctas de las
+    otras preguntas del grupo también se usan como opciones falsas.
+  - Si alguna respuesta del grupo también sería correcta para una pregunta,
+    ponla en "excluir": ["Esa respuesta"] para que nunca salga ahí.
 
   Para crear un tema nuevo, copia un bloque de tema completo y cambia
   "id" (sin espacios ni acentos), "nombre" e "icono".
@@ -33,6 +42,7 @@ window.TEMAS = [
     preguntas: [
       {
         apartado: "Funcionamiento",
+        grupo: "Células",
         pregunta: "¿Qué célula presenta antígenos de forma más eficiente a los linfocitos T vírgenes?",
         correcta: "Célula dendrítica",
         incorrectas: ["Neutrófilo", "Mastocito", "Plaqueta"],
@@ -40,6 +50,7 @@ window.TEMAS = [
       },
       {
         apartado: "Morfología",
+        grupo: "Inmunoglobulinas",
         pregunta: "¿Cuál es la primera inmunoglobulina que se produce en una respuesta primaria?",
         correcta: "IgM",
         incorrectas: ["IgG", "IgA", "IgE"],
@@ -47,13 +58,15 @@ window.TEMAS = [
       },
       {
         apartado: "Funcionamiento",
+        grupo: "Inmunoglobulinas",
         pregunta: "¿Qué inmunoglobulina atraviesa la placenta?",
         correcta: "IgG",
-        incorrectas: ["IgM", "IgA", "IgD"],
+        incorrectas: ["IgM", "IgA", "IgD", "IgE"],
         explicacion: "La IgG cruza la placenta gracias al receptor FcRn y protege al recién nacido durante sus primeros meses."
       },
       {
         apartado: "Funcionamiento",
+        grupo: "Moléculas MHC",
         pregunta: "Las células NK destruyen células que perdieron la expresión de:",
         correcta: "MHC clase I",
         incorrectas: ["MHC clase II", "CD4", "Receptor de complemento CR1"],
@@ -61,6 +74,7 @@ window.TEMAS = [
       },
       {
         apartado: "Funcionamiento",
+        grupo: "Citocinas",
         pregunta: "¿Qué citocinas inducen un estado antiviral en las células vecinas en las primeras horas de una infección?",
         correcta: "Interferones tipo I (α y β)",
         incorrectas: ["IL-4", "IL-5", "TGF-β"],
@@ -68,6 +82,7 @@ window.TEMAS = [
       },
       {
         apartado: "Morfología",
+        grupo: "Moléculas MHC",
         pregunta: "Los linfocitos T CD4+ reconocen péptidos presentados por:",
         correcta: "MHC clase II",
         incorrectas: ["MHC clase I", "CD1", "Receptores tipo Toll"],
@@ -82,6 +97,7 @@ window.TEMAS = [
     preguntas: [
       {
         apartado: "Funcionamiento",
+        grupo: "Células",
         pregunta: "¿Cuál es el principal mecanismo efector para eliminar células infectadas por virus?",
         correcta: "Linfocitos T CD8+ citotóxicos",
         incorrectas: ["Eosinófilos", "IgE y mastocitos", "Basófilos"],
@@ -96,13 +112,15 @@ window.TEMAS = [
       },
       {
         apartado: "Morfología",
+        grupo: "Virus",
         pregunta: "¿Cuál de estos virus tiene genoma de ADN?",
         correcta: "Virus del herpes simple",
-        incorrectas: ["Virus de la influenza", "VIH", "Virus del dengue"],
+        incorrectas: ["Virus de la influenza", "VIH", "Virus del dengue", "Virus de la rabia", "Virus de la hepatitis C"],
         explicacion: "Los herpesvirus tienen ADN de doble cadena. Influenza, VIH y dengue son virus de ARN."
       },
       {
         apartado: "Consecuencias",
+        grupo: "Mecanismos de evasión",
         pregunta: "Un mecanismo de evasión inmune típico de los herpesvirus es:",
         correcta: "Disminuir la expresión de MHC clase I",
         incorrectas: ["Producir una cápsula de polisacárido", "Formar esporas", "Cambiar a forma de levadura"],
@@ -117,6 +135,7 @@ window.TEMAS = [
       },
       {
         apartado: "Consecuencias",
+        grupo: "Virus",
         pregunta: "El cambio antigénico mayor (shift), por reordenamiento de segmentos del genoma, es característico de:",
         correcta: "Virus de la influenza A",
         incorrectas: ["Virus de la hepatitis B", "Virus del sarampión", "Poliovirus"],
@@ -131,6 +150,7 @@ window.TEMAS = [
     preguntas: [
       {
         apartado: "Funcionamiento",
+        grupo: "Respuestas T",
         pregunta: "¿Qué respuesta T cooperadora es la más importante contra Candida en las mucosas?",
         correcta: "Th17",
         incorrectas: ["Th2", "Treg", "Tfh"],
@@ -145,6 +165,7 @@ window.TEMAS = [
       },
       {
         apartado: "Consecuencias",
+        grupo: "Células",
         pregunta: "¿Cuál es la célula de defensa más importante contra la aspergilosis invasiva?",
         correcta: "Neutrófilo",
         incorrectas: ["Linfocito B", "Eosinófilo", "Mastocito"],
@@ -152,6 +173,7 @@ window.TEMAS = [
       },
       {
         apartado: "Morfología",
+        grupo: "Hongos",
         pregunta: "¿Qué hongo dimórfico se ve en tejido como levadura con gemación múltiple en «timón de barco»?",
         correcta: "Paracoccidioides brasiliensis",
         incorrectas: ["Histoplasma capsulatum", "Candida albicans", "Aspergillus fumigatus"],
@@ -159,6 +181,7 @@ window.TEMAS = [
       },
       {
         apartado: "Morfología",
+        grupo: "Mecanismos de evasión",
         pregunta: "Cryptococcus neoformans evade la fagocitosis principalmente gracias a:",
         correcta: "Su cápsula de polisacárido",
         incorrectas: ["La formación de hifas septadas", "La producción de toxina A", "La variación antigénica de sus pili"],
@@ -166,6 +189,7 @@ window.TEMAS = [
       },
       {
         apartado: "Consecuencias",
+        grupo: "Hongos",
         pregunta: "¿Qué hongo oportunista causa neumonía en pacientes con VIH y CD4 menores de 200/µL?",
         correcta: "Pneumocystis jirovecii",
         incorrectas: ["Sporothrix schenckii", "Trichophyton rubrum", "Malassezia furfur"],
@@ -180,6 +204,7 @@ window.TEMAS = [
     preguntas: [
       {
         apartado: "Funcionamiento",
+        grupo: "Respuestas T",
         pregunta: "¿Qué respuesta inmune predomina contra los helmintos?",
         correcta: "Th2 (IL-4, IL-5 e IL-13)",
         incorrectas: ["Th1 (IFN-γ)", "Th17 (IL-17)", "Solo células NK"],
@@ -187,6 +212,7 @@ window.TEMAS = [
       },
       {
         apartado: "Funcionamiento",
+        grupo: "Células",
         pregunta: "¿Qué célula destruye helmintos recubiertos de IgE mediante citotoxicidad dependiente de anticuerpos (ADCC)?",
         correcta: "Eosinófilo",
         incorrectas: ["Neutrófilo", "Linfocito T CD8+", "Plaqueta"],
@@ -194,6 +220,7 @@ window.TEMAS = [
       },
       {
         apartado: "Consecuencias",
+        grupo: "Mecanismos de evasión",
         pregunta: "Trypanosoma brucei evade la respuesta de anticuerpos mediante:",
         correcta: "Variación antigénica de su glicoproteína de superficie (VSG)",
         incorrectas: ["Formación de una cápsula", "Esporulación", "Bloqueo del MHC clase II"],
@@ -201,6 +228,7 @@ window.TEMAS = [
       },
       {
         apartado: "Consecuencias",
+        grupo: "Inmunoglobulinas",
         pregunta: "¿Qué inmunoglobulina aumenta típicamente en las infecciones por helmintos?",
         correcta: "IgE",
         incorrectas: ["IgA", "IgD", "IgM"],
@@ -215,6 +243,7 @@ window.TEMAS = [
       },
       {
         apartado: "Funcionamiento",
+        grupo: "Respuestas T",
         pregunta: "¿Qué respuesta controla la infección por Leishmania dentro de los macrófagos?",
         correcta: "Th1 con IFN-γ, que activa al macrófago",
         incorrectas: ["Th2 con IL-4", "IgE y eosinófilos", "Solo el complemento"],

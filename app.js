@@ -122,8 +122,11 @@
       correcta = String(p.correcta == null ? "" : p.correcta);
       opciones = [correcta].concat((p.incorrectas || []).map(String));
     }
-    opciones = opciones.filter(function (o, i) { return o && opciones.indexOf(o) === i; });
-    if (!correcta || opciones.length < 2) {
+    correcta = correcta.trim();
+    var incorrectas = unicas(opciones.map(function (o) { return o.trim(); }))
+      .filter(function (o) { return clave(o) !== clave(correcta); });
+    var grupo = p.grupo ? String(p.grupo).trim() : "";
+    if (!correcta || (!incorrectas.length && !grupo)) {
       console.warn("Pregunta incompleta (falta la respuesta correcta o las opciones):", p);
       return null;
     }
@@ -131,12 +134,26 @@
       id: topicId + ":" + hash(String(p.pregunta)),
       topicId: topicId,
       apartado: p.apartado ? String(p.apartado).trim() : "General",
+      grupo: grupo,
       texto: String(p.pregunta),
       correcta: correcta,
-      opciones: opciones,
+      incorrectas: incorrectas,
+      excluir: (p.excluir || []).map(function (o) { return clave(String(o)); }),
       explicacion: p.explicacion ? String(p.explicacion) : "",
       imagen: p.imagen || null
     };
+  }
+
+  function clave(s) { return String(s).trim().toLowerCase(); }
+
+  function unicas(lista) {
+    var vistas = {};
+    return lista.filter(function (o) {
+      var k = clave(o);
+      if (!k || vistas[k]) return false;
+      vistas[k] = true;
+      return true;
+    });
   }
 
   var TOPICS = (Array.isArray(window.TEMAS) ? window.TEMAS : []).map(function (t, i) {
@@ -150,6 +167,32 @@
   });
   var QUESTIONS = [];
   TOPICS.forEach(function (t) { QUESTIONS = QUESTIONS.concat(t.preguntas); });
+
+  // Respuestas correctas de cada "grupo": sirven como opciones falsas para las otras preguntas del grupo.
+  var GRUPOS = {};
+  QUESTIONS.forEach(function (q) {
+    if (!q.grupo) return;
+    (GRUPOS[q.grupo] = GRUPOS[q.grupo] || []).push(q.correcta);
+  });
+
+  /*
+    Arma las 4 opciones de una pregunta cada vez que sale, para que las opciones
+    falsas cambien y no te aprendas cuáles sobran: toma algunas de sus propias
+    incorrectas y, si la pregunta tiene grupo, mezcla respuestas de otras preguntas del grupo.
+  */
+  function armarOpciones(q) {
+    var usadas = [clave(q.correcta)].concat(q.excluir);
+    var libre = function (o) { return usadas.indexOf(clave(o)) < 0; };
+    var propias = shuffle(q.incorrectas.filter(libre));
+    var ajenas = shuffle(unicas((GRUPOS[q.grupo] || []).filter(function (o) {
+      return libre(o) && q.incorrectas.map(clave).indexOf(clave(o)) < 0;
+    })));
+    var nAjenas = Math.floor(Math.random() * (Math.min(propias.length ? 2 : 3, ajenas.length) + 1));
+    var malas = ajenas.slice(0, nAjenas);
+    malas = malas.concat(propias.slice(0, 3 - malas.length));
+    malas = malas.concat(ajenas.slice(nAjenas, nAjenas + 3 - malas.length));
+    return shuffle([q.correcta].concat(malas));
+  }
 
   function topicById(id) {
     for (var i = 0; i < TOPICS.length; i++) if (TOPICS[i].id === id) return TOPICS[i];
@@ -327,7 +370,7 @@
       save();
     }
     if (!est.items.length) return;
-    est.items.forEach(function (it) { it.opciones = shuffle(it.q.opciones.slice()); });
+    est.items.forEach(function (it) { it.opciones = armarOpciones(it.q); });
     session = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       topicIds: topicIds,
@@ -410,7 +453,7 @@
     var vuelve = !ok && s.veces[q.id] < MAX_VECES;
     if (vuelve) {
       var pos = Math.min(s.items.length, s.i + 1 + HUECO_REINTENTO);
-      s.items.splice(pos, 0, { q: q, etiqueta: "Otra vez", opciones: shuffle(q.opciones.slice()) });
+      s.items.splice(pos, 0, { q: q, etiqueta: "Otra vez", opciones: armarOpciones(q) });
     }
 
     app.querySelectorAll(".opt").forEach(function (b) {

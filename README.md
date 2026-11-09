@@ -34,6 +34,7 @@ Todo el contenido está en [`preguntas.js`](preguntas.js). Cada pregunta se ve a
 ```
 
 - Las opciones se revuelven solas, así que no importa el orden.
+- **Las opciones falsas cambian cada vez** para que no te aprendas cuáles sobran: puedes poner más de 3 `incorrectas` (se eligen 3 al azar). Además, las preguntas con el mismo `grupo` (por ejemplo "Hongos" o "Células") se prestan sus respuestas correctas como opciones falsas. Si una respuesta del grupo también sería correcta para una pregunta, ponla en `excluir: ["..."]`.
 - Si no pones `imagen`, se usa el dibujo del tema.
 - Las preguntas actuales son de ejemplo.
 
