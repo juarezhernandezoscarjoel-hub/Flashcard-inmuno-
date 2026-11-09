@@ -3,6 +3,7 @@
 
   var STORE_KEY = "inmuno-flashcards-v1";
   var ESTACIONES = [2, 3, 4, 5];   // en cuántas estaciones se reparten las preguntas
+  var MIN_POR_ESTACION = 6;         // con pocas preguntas se usan menos estaciones
   var HUECO_REINTENTO = 3;          // una fallada vuelve a salir después de ~3 preguntas
   var MAX_VECES = 3;                // veces máximas que sale la misma pregunta en una estación
   var app = document.getElementById("app");
@@ -17,33 +18,22 @@
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>'
   };
 
-  /* ---------- Dibujos de cada tema ---------- */
+  /* ---------- Dibujos de cada tema ----------
+     Usan tres tonos (--c1 base, --c2 oscuro, --c3 claro) que salen del "color" del tema. */
   function n(v) { return Math.round(v * 10) / 10; }
-
-  function svgAnticuerpo() {
-    return '<svg viewBox="0 0 120 120" aria-hidden="true">' +
-      '<rect x="15" y="15" width="14" height="14" rx="3" transform="rotate(45 22 22)" fill="#ffc94d" stroke="#e0a52a" stroke-width="2"/>' +
-      '<rect x="91" y="15" width="14" height="14" rx="3" transform="rotate(45 98 22)" fill="#ffc94d" stroke="#e0a52a" stroke-width="2"/>' +
-      '<path d="M60 106V64L35 30M60 64l25-34" fill="none" stroke="#7d5ce6" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>' +
-      '<path d="M41.6 59.2L25.3 37.1M78.4 59.2l16.3-22.1" stroke="#f08bb8" stroke-width="10" stroke-linecap="round"/>' +
-      '<path d="M54 74h12M54 82h12" stroke="#ffd98a" stroke-width="3" stroke-linecap="round"/>' +
-      '</svg>';
-  }
+  var HL = 'stroke="#fff" stroke-opacity=".6" fill="none" stroke-linecap="round"';
 
   function svgVirus() {
     var s = "";
     for (var k = 0; k < 12; k++) {
       var a = (k / 12) * Math.PI * 2 + 0.13, c = Math.cos(a), si = Math.sin(a);
       s += '<line x1="' + n(60 + c * 30) + '" y1="' + n(60 + si * 30) + '" x2="' + n(60 + c * 44) + '" y2="' + n(60 + si * 44) +
-        '" stroke="#d9584a" stroke-width="4" stroke-linecap="round"/>' +
-        '<circle cx="' + n(60 + c * 47) + '" cy="' + n(60 + si * 47) + '" r="6" fill="#f59a8d" stroke="#d9584a" stroke-width="2.5"/>';
+        '" stroke="var(--c2)" stroke-width="4" stroke-linecap="round"/>' +
+        '<circle cx="' + n(60 + c * 47) + '" cy="' + n(60 + si * 47) + '" r="6" fill="var(--c3)" stroke="var(--c2)" stroke-width="2.5"/>';
     }
-    return '<svg viewBox="0 0 120 120" aria-hidden="true">' + s +
-      '<circle cx="60" cy="60" r="33" fill="#f27a6b" stroke="#d9584a" stroke-width="3"/>' +
-      '<circle cx="51" cy="67" r="6" fill="#f9b3a9"/><circle cx="71" cy="53" r="4.5" fill="#f9b3a9"/>' +
-      '<circle cx="69" cy="75" r="3.5" fill="#f9b3a9"/><circle cx="49" cy="49" r="3" fill="#f9b3a9"/>' +
-      '<path d="M40 50a24 24 0 0 1 16-14" fill="none" stroke="#ffd9d3" stroke-width="4" stroke-linecap="round"/>' +
-      '</svg>';
+    return s + '<circle cx="60" cy="60" r="33" fill="var(--c1)" stroke="var(--c2)" stroke-width="3"/>' +
+      '<g fill="var(--c3)"><circle cx="51" cy="67" r="6"/><circle cx="71" cy="53" r="4.5"/><circle cx="69" cy="75" r="3.5"/><circle cx="49" cy="49" r="3"/></g>' +
+      '<path d="M40 50a24 24 0 0 1 16-14" stroke-width="4" ' + HL + "/>";
   }
 
   function svgHongo() {
@@ -51,42 +41,162 @@
     for (var k = 0; k <= 8; k++) {
       var a = Math.PI + (k / 8) * Math.PI, c = Math.cos(a), si = Math.sin(a);
       s += '<line x1="' + n(cx + c * 13) + '" y1="' + n(cy + si * 13) + '" x2="' + n(cx + c * 20) + '" y2="' + n(cy + si * 20) +
-        '" stroke="#2f9e7e" stroke-width="3.5" stroke-linecap="round"/>';
+        '" stroke="var(--c2)" stroke-width="3.5" stroke-linecap="round"/>';
       for (var j = 0; j < 3; j++) {
         var r = 24 + j * 8.5;
         s += '<circle cx="' + n(cx + c * r) + '" cy="' + n(cy + si * r) + '" r="' + (4.2 - j * 0.5) +
-          '" fill="' + (j % 2 ? "#8fe0c4" : "#45bf98") + '" stroke="#2f9e7e" stroke-width="1.5"/>';
+          '" fill="var(' + (j % 2 ? "--c3" : "--c1") + ')" stroke="var(--c2)" stroke-width="1.5"/>';
       }
     }
-    return '<svg viewBox="0 0 120 120" aria-hidden="true">' +
-      '<path d="M60 112c-3-14 3-26 0-46" fill="none" stroke="#2f9e7e" stroke-width="8" stroke-linecap="round"/>' +
-      '<path d="M46 112h28" stroke="#2f9e7e" stroke-width="6" stroke-linecap="round"/>' + s +
-      '<circle cx="60" cy="54" r="14" fill="#45bf98" stroke="#2f9e7e" stroke-width="3"/>' +
-      '<path d="M52 51a9 9 0 0 1 8-7" stroke="#bff0de" stroke-width="3" fill="none" stroke-linecap="round"/>' +
-      '</svg>';
+    return '<path d="M60 112c-3-14 3-26 0-46" fill="none" stroke="var(--c2)" stroke-width="8" stroke-linecap="round"/>' +
+      '<path d="M46 112h28" stroke="var(--c2)" stroke-width="6" stroke-linecap="round"/>' + s +
+      '<circle cx="60" cy="54" r="14" fill="var(--c1)" stroke="var(--c2)" stroke-width="3"/>' +
+      '<path d="M52 51a9 9 0 0 1 8-7" stroke-width="3" ' + HL + "/>";
+  }
+
+  function svgLevadura() {
+    return '<ellipse cx="50" cy="66" rx="30" ry="34" fill="var(--c1)" stroke="var(--c2)" stroke-width="3"/>' +
+      '<ellipse cx="86" cy="34" rx="17" ry="19" fill="var(--c1)" stroke="var(--c2)" stroke-width="3"/>' +
+      '<circle cx="50" cy="68" r="10" fill="var(--c3)" stroke="var(--c2)" stroke-width="2"/>' +
+      '<circle cx="88" cy="36" r="5" fill="var(--c3)"/><circle cx="36" cy="86" r="4" fill="var(--c3)"/>' +
+      '<path d="M30 54a24 26 0 0 1 12-16" stroke-width="4" ' + HL + "/>";
   }
 
   function svgParasito() {
-    return '<svg viewBox="0 0 120 120" aria-hidden="true">' +
-      '<g fill="none" stroke="#e08a2a" stroke-width="2.6" stroke-linecap="round">' +
+    return '<g fill="none" stroke="var(--c2)" stroke-width="2.6" stroke-linecap="round">' +
       '<path d="M57 100c-4 7 2 11-4 18M63 100c4 7-2 11 4 18"/>' +
       '<path d="M31 60c-8 2-10 10-18 10M89 60c8 2 10 10 18 10"/>' +
       '<path d="M42 84c-6 8-4 15-12 19M78 84c6 8 4 15 12 19"/></g>' +
-      '<path d="M60 14c26 0 36 24 32 44-4 20-20 34-32 44-12-10-28-24-32-44-4-20 6-44 32-44z" fill="#ffb547" stroke="#e08a2a" stroke-width="3"/>' +
-      '<ellipse cx="60" cy="44" rx="25" ry="19" fill="#ffd38c"/>' +
-      '<path d="M60 58v42" stroke="#e08a2a" stroke-width="2"/>' +
-      '<ellipse cx="49" cy="45" rx="8" ry="10" fill="#fff4e0" stroke="#c46d12" stroke-width="2"/>' +
-      '<ellipse cx="71" cy="45" rx="8" ry="10" fill="#fff4e0" stroke="#c46d12" stroke-width="2"/>' +
-      '<circle cx="49" cy="46" r="3" fill="#8a4a0c"/><circle cx="71" cy="46" r="3" fill="#8a4a0c"/>' +
-      '<path d="M51 72q9-6 18 0" fill="none" stroke="#c46d12" stroke-width="3.5" stroke-linecap="round"/>' +
-      '</svg>';
+      '<path d="M60 14c26 0 36 24 32 44-4 20-20 34-32 44-12-10-28-24-32-44-4-20 6-44 32-44z" fill="var(--c1)" stroke="var(--c2)" stroke-width="3"/>' +
+      '<ellipse cx="60" cy="44" rx="25" ry="19" fill="var(--c3)"/>' +
+      '<path d="M60 58v42" stroke="var(--c2)" stroke-width="2"/>' +
+      '<ellipse cx="49" cy="45" rx="8" ry="10" fill="#fff" stroke="var(--c2)" stroke-width="2"/>' +
+      '<ellipse cx="71" cy="45" rx="8" ry="10" fill="#fff" stroke="var(--c2)" stroke-width="2"/>' +
+      '<circle cx="49" cy="46" r="3" fill="var(--c2)"/><circle cx="71" cy="46" r="3" fill="var(--c2)"/>' +
+      '<path d="M51 72q9-6 18 0" fill="none" stroke="var(--c2)" stroke-width="3.5" stroke-linecap="round"/>';
   }
 
-  var ART = { anticuerpo: svgAnticuerpo(), virus: svgVirus(), hongo: svgHongo(), parasito: svgParasito() };
+  function svgGusano() {
+    var d = "M22 92C30 64 58 98 66 70S98 40 96 24";
+    return '<path d="' + d + '" fill="none" stroke="var(--c2)" stroke-width="19" stroke-linecap="round"/>' +
+      '<path d="' + d + '" fill="none" stroke="var(--c1)" stroke-width="13" stroke-linecap="round"/>' +
+      '<path d="' + d + '" fill="none" stroke="var(--c3)" stroke-width="13" stroke-dasharray="2 8"/>' +
+      '<circle cx="96" cy="25" r="2.5" fill="var(--c2)"/>';
+  }
 
-  function artHTML(src, foto) {
-    if (ART[src]) return '<span class="art">' + ART[src] + "</span>";
-    return '<span class="art' + (foto ? " photo" : "") + '"><img src="' + esc(src) + '" alt=""></span>';
+  function svgAmeba() {
+    return '<path d="M60 18c14 0 18 12 30 12 12 0 18 14 12 24-5 9 6 16 2 28-5 14-20 10-28 18-9 9-24 4-30-4-7-9-22-6-26-20-4-13 8-18 6-30-2-14 10-20 20-18 6 1 8-10 14-10z" fill="var(--c1)" stroke="var(--c2)" stroke-width="3" stroke-linejoin="round"/>' +
+      '<circle cx="56" cy="60" r="12" fill="var(--c3)" stroke="var(--c2)" stroke-width="2"/><circle cx="56" cy="60" r="3.5" fill="var(--c2)"/>' +
+      '<circle cx="82" cy="74" r="6" fill="var(--c3)"/><circle cx="36" cy="76" r="4" fill="var(--c3)"/>' +
+      '<circle cx="80" cy="46" r="5" fill="#e11d48" fill-opacity=".75"/>' +
+      '<path d="M36 40a20 20 0 0 1 12-10" stroke-width="4" ' + HL + "/>";
+  }
+
+  function svgAdn() {
+    var a = "", b = "", r = "";
+    for (var y = 12; y <= 108; y += 2) {
+      var t = ((y - 12) / 96) * Math.PI * 2.5, x = 26 * Math.sin(t);
+      a += (y === 12 ? "M" : "L") + n(60 + x) + " " + y;
+      b += (y === 12 ? "M" : "L") + n(60 - x) + " " + y;
+      if ((y - 12) % 8 === 4) r += '<line x1="' + n(60 + x) + '" y1="' + y + '" x2="' + n(60 - x) + '" y2="' + y + '"/>';
+    }
+    return '<g stroke="var(--c3)" stroke-width="4" stroke-linecap="round">' + r + "</g>" +
+      '<path d="' + a + '" fill="none" stroke="var(--c1)" stroke-width="7" stroke-linecap="round"/>' +
+      '<path d="' + b + '" fill="none" stroke="var(--c2)" stroke-width="7" stroke-linecap="round"/>';
+  }
+
+  function svgAnticuerpo() {
+    return '<rect x="15" y="15" width="14" height="14" rx="3" transform="rotate(45 22 22)" fill="#ffc94d" stroke="#e0a52a" stroke-width="2"/>' +
+      '<rect x="91" y="15" width="14" height="14" rx="3" transform="rotate(45 98 22)" fill="#ffc94d" stroke="#e0a52a" stroke-width="2"/>' +
+      '<path d="M60 106V64L35 30M60 64l25-34" fill="none" stroke="var(--c1)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="M41.6 59.2L25.3 37.1M78.4 59.2l16.3-22.1" stroke="#f08bb8" stroke-width="10" stroke-linecap="round"/>' +
+      '<path d="M54 74h12M54 82h12" stroke="#ffd98a" stroke-width="3" stroke-linecap="round"/>';
+  }
+
+  function svgLupa() {
+    return '<path d="M74 74l26 26" stroke="var(--c2)" stroke-width="12" stroke-linecap="round"/>' +
+      '<circle cx="50" cy="50" r="32" fill="var(--c3)" stroke="var(--c2)" stroke-width="8"/>' +
+      '<g fill="var(--c1)"><circle cx="41" cy="46" r="7"/><circle cx="61" cy="60" r="5"/>' +
+      '<ellipse cx="59" cy="38" rx="8" ry="4" transform="rotate(30 59 38)"/><circle cx="42" cy="64" r="3.5"/></g>' +
+      '<path d="M30 40a22 22 0 0 1 12-14" stroke-width="4" ' + HL + "/>";
+  }
+
+  function svgBacteria() {
+    var s = "";
+    [[36, 40], [80, 38], [58, 82]].forEach(function (p) {
+      s += '<ellipse cx="' + (p[0] - 9) + '" cy="' + p[1] + '" rx="10" ry="12" fill="var(--c1)" stroke="var(--c2)" stroke-width="2.5"/>' +
+        '<ellipse cx="' + (p[0] + 9) + '" cy="' + p[1] + '" rx="10" ry="12" fill="var(--c1)" stroke="var(--c2)" stroke-width="2.5"/>' +
+        '<path d="M' + (p[0] - 14) + " " + (p[1] - 4) + 'a6 6 0 0 1 4-5" stroke-width="2.5" ' + HL + "/>";
+    });
+    return '<circle cx="60" cy="60" r="52" fill="var(--c3)" fill-opacity=".45"/>' + s;
+  }
+
+  function svgCelula() {
+    var v = function (ang, rad, r) {
+      var a = (ang * Math.PI) / 180;
+      return '<circle cx="' + n(56 + Math.cos(a) * rad) + '" cy="' + n(62 + Math.sin(a) * rad) + '" r="' + r + '" fill="var(--c1)" stroke="var(--c2)" stroke-width="2"/>';
+    };
+    return '<circle cx="56" cy="62" r="40" fill="var(--c3)" stroke="var(--c2)" stroke-width="3"/>' +
+      '<circle cx="50" cy="66" r="15" fill="var(--c1)" stroke="var(--c2)" stroke-width="2"/>' +
+      '<g fill="var(--c2)"><circle cx="74" cy="72" r="3.5"/><circle cx="68" cy="86" r="3.5"/><circle cx="36" cy="44" r="3.5"/></g>' +
+      v(-35, 40, 8) + v(-60, 54, 7) + v(10, 52, 6);
+  }
+
+  function svgEritrocito() {
+    var gr = function (cx, cy, r, rx, ry) {
+      return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="var(--c1)" stroke="var(--c2)" stroke-width="3"/>' +
+        '<circle cx="' + cx + '" cy="' + cy + '" r="' + n(r * 0.45) + '" fill="var(--c3)" fill-opacity=".7"/>' +
+        '<circle cx="' + rx + '" cy="' + ry + '" r="' + n(r * 0.25) + '" fill="none" stroke="#5b21b6" stroke-width="3"/>' +
+        '<circle cx="' + n(rx + r * 0.22) + '" cy="' + n(ry - r * 0.18) + '" r="3" fill="#5b21b6"/>';
+    };
+    return gr(48, 54, 32, 56, 46) + gr(84, 86, 21, 88, 82);
+  }
+
+  var ICONOS = {
+    virus: [svgVirus(), "#f27a6b"],
+    hongo: [svgHongo(), "#45bf98"],
+    levadura: [svgLevadura(), "#e9a23b"],
+    parasito: [svgParasito(), "#ffb547"],
+    gusano: [svgGusano(), "#f08bb8"],
+    ameba: [svgAmeba(), "#ef6f6c"],
+    adn: [svgAdn(), "#7d5ce6"],
+    anticuerpo: [svgAnticuerpo(), "#7d5ce6"],
+    lupa: [svgLupa(), "#3b82f6"],
+    bacteria: [svgBacteria(), "#2563eb"],
+    celula: [svgCelula(), "#14b8a6"],
+    eritrocito: [svgEritrocito(), "#e5484d"]
+  };
+
+  function hexToHsl(hex) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return null;
+    var v = parseInt(m[1], 16), r = ((v >> 16) & 255) / 255, g = ((v >> 8) & 255) / 255, b = (v & 255) / 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, h = 0, s = 0, d = max - min;
+    if (d) {
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h *= 60;
+    }
+    return { h: h, s: s, l: l };
+  }
+
+  function hsl(h, s, l) {
+    return "hsl(" + Math.round(h) + ", " + Math.round(Math.min(1, s) * 100) + "%, " + Math.round(l * 100) + "%)";
+  }
+
+  function paleta(hex) {
+    var c = hexToHsl(hex) || hexToHsl("#7d5ce6");
+    return "--c1:" + hsl(c.h, c.s, c.l) +
+      ";--c2:" + hsl(c.h, c.s * 1.05, Math.max(0.14, c.l - 0.17)) +
+      ";--c3:" + hsl(c.h, c.s * 0.9, Math.min(0.93, c.l + 0.24));
+  }
+
+  function artHTML(icono, color, foto) {
+    var ic = ICONOS[icono];
+    if (ic) {
+      return '<span class="art" style="' + paleta(color || ic[1]) + '"><svg viewBox="0 0 120 120" aria-hidden="true">' + ic[0] + "</svg></span>";
+    }
+    return '<span class="art' + (foto ? " photo" : "") + '"><img src="' + esc(icono) + '" alt=""></span>';
   }
 
   /* ---------- Utilidades ---------- */
@@ -110,40 +220,6 @@
     return (h >>> 0).toString(36);
   }
 
-  /* ---------- Datos ---------- */
-  function normalizar(p, topicId) {
-    if (!p || !p.pregunta) return null;
-    var correcta, opciones;
-    if (Array.isArray(p.opciones)) {
-      opciones = p.opciones.map(String);
-      correcta = typeof p.correcta === "number" ? opciones[p.correcta] : String(p.correcta == null ? "" : p.correcta);
-      if (correcta && opciones.indexOf(correcta) < 0) opciones.unshift(correcta);
-    } else {
-      correcta = String(p.correcta == null ? "" : p.correcta);
-      opciones = [correcta].concat((p.incorrectas || []).map(String));
-    }
-    correcta = correcta.trim();
-    var incorrectas = unicas(opciones.map(function (o) { return o.trim(); }))
-      .filter(function (o) { return clave(o) !== clave(correcta); });
-    var grupo = p.grupo ? String(p.grupo).trim() : "";
-    if (!correcta || (!incorrectas.length && !grupo)) {
-      console.warn("Pregunta incompleta (falta la respuesta correcta o las opciones):", p);
-      return null;
-    }
-    return {
-      id: topicId + ":" + hash(String(p.pregunta)),
-      topicId: topicId,
-      apartado: p.apartado ? String(p.apartado).trim() : "General",
-      grupo: grupo,
-      texto: String(p.pregunta),
-      correcta: correcta,
-      incorrectas: incorrectas,
-      excluir: (p.excluir || []).map(function (o) { return clave(String(o)); }),
-      explicacion: p.explicacion ? String(p.explicacion) : "",
-      imagen: p.imagen || null
-    };
-  }
-
   function clave(s) { return String(s).trim().toLowerCase(); }
 
   function unicas(lista) {
@@ -156,23 +232,80 @@
     });
   }
 
-  var TOPICS = (Array.isArray(window.TEMAS) ? window.TEMAS : []).map(function (t, i) {
-    var id = String(t.id || "tema" + i);
+  function cruza(a, b) {
+    for (var i = 0; i < a.length; i++) if (b.indexOf(a[i]) >= 0) return true;
+    return false;
+  }
+
+  /* ---------- Datos ----------
+     window.TEMAS = [ { id, nombre, subtemas: [ { id, nombre, icono, color, preguntas: [...] } ] } ]
+     (también acepta temas sin subtemas, con "preguntas" directo). */
+  function normalizar(p, subId) {
+    if (!p || !p.pregunta) return null;
+    var correcta, opciones;
+    if (Array.isArray(p.opciones)) {
+      opciones = p.opciones.map(String);
+      correcta = typeof p.correcta === "number" ? opciones[p.correcta] : String(p.correcta == null ? "" : p.correcta);
+    } else {
+      correcta = String(p.correcta == null ? "" : p.correcta);
+      opciones = (p.incorrectas || []).map(String);
+    }
+    correcta = correcta.trim();
+    var incorrectas = unicas(opciones.map(function (o) { return o.trim(); }))
+      .filter(function (o) { return clave(o) !== clave(correcta); });
+    var grupo = p.grupo ? String(p.grupo).trim() : "";
+    if (!correcta || (!incorrectas.length && !grupo)) {
+      console.warn("Pregunta incompleta (falta la respuesta correcta o las opciones):", p);
+      return null;
+    }
     return {
-      id: id,
-      nombre: t.nombre || "Tema " + (i + 1),
-      icono: t.icono || "anticuerpo",
-      preguntas: (t.preguntas || []).map(function (p) { return normalizar(p, id); }).filter(Boolean)
+      id: subId + ":" + hash(String(p.pregunta)),
+      topicId: subId,
+      tambien: (p.tambien || []).map(String),
+      temas: [subId],
+      apartado: p.apartado ? String(p.apartado).trim() : "General",
+      grupo: grupo,
+      texto: String(p.pregunta),
+      correcta: correcta,
+      incorrectas: incorrectas,
+      excluir: (p.excluir || []).map(clave),
+      explicacion: p.explicacion ? String(p.explicacion) : "",
+      imagen: p.imagen || null
     };
+  }
+
+  var GRUPOS = [], SUBTEMAS = [], SUB = {}, QUESTIONS = [];
+  (Array.isArray(window.TEMAS) ? window.TEMAS : []).forEach(function (g, gi) {
+    var gid = String(g.id || "grupo" + gi);
+    var subs = Array.isArray(g.subtemas) ? g.subtemas
+      : [{ id: gid, nombre: g.nombre, icono: g.icono, color: g.color, preguntas: g.preguntas || [] }];
+    var grupo = { id: gid, nombre: g.nombre || "Temas", subtemas: [] };
+    subs.forEach(function (t, ti) {
+      var id = String(t.id || gid + "-" + ti);
+      if (SUB[id]) { console.warn("Subtema con id repetido:", id); return; }
+      var sub = { id: id, grupo: gid, nombre: t.nombre || "Tema", icono: t.icono || g.icono || "virus", color: t.color || null, total: 0 };
+      SUB[id] = sub;
+      SUBTEMAS.push(sub);
+      grupo.subtemas.push(sub);
+      (t.preguntas || []).forEach(function (p) {
+        var q = normalizar(p, id);
+        if (q) QUESTIONS.push(q);
+      });
+    });
+    GRUPOS.push(grupo);
   });
-  var QUESTIONS = [];
-  TOPICS.forEach(function (t) { QUESTIONS = QUESTIONS.concat(t.preguntas); });
+  QUESTIONS.forEach(function (q) {
+    q.tambien.forEach(function (id) {
+      if (!SUB[id]) console.warn('"tambien" apunta a un subtema que no existe:', id, q.texto);
+      else if (q.temas.indexOf(id) < 0) q.temas.push(id);
+    });
+    q.temas.forEach(function (id) { SUB[id].total++; });
+  });
 
   // Respuestas correctas de cada "grupo": sirven como opciones falsas para las otras preguntas del grupo.
-  var GRUPOS = {};
+  var FALSAS = {};
   QUESTIONS.forEach(function (q) {
-    if (!q.grupo) return;
-    (GRUPOS[q.grupo] = GRUPOS[q.grupo] || []).push(q.correcta);
+    if (q.grupo) (FALSAS[q.grupo] = FALSAS[q.grupo] || []).push(q.correcta);
   });
 
   /*
@@ -184,7 +317,7 @@
     var usadas = [clave(q.correcta)].concat(q.excluir);
     var libre = function (o) { return usadas.indexOf(clave(o)) < 0; };
     var propias = shuffle(q.incorrectas.filter(libre));
-    var ajenas = shuffle(unicas((GRUPOS[q.grupo] || []).filter(function (o) {
+    var ajenas = shuffle(unicas((FALSAS[q.grupo] || []).filter(function (o) {
       return libre(o) && q.incorrectas.map(clave).indexOf(clave(o)) < 0;
     })));
     var nAjenas = Math.floor(Math.random() * (Math.min(propias.length ? 2 : 3, ajenas.length) + 1));
@@ -192,11 +325,6 @@
     malas = malas.concat(propias.slice(0, 3 - malas.length));
     malas = malas.concat(ajenas.slice(nAjenas, nAjenas + 3 - malas.length));
     return shuffle([q.correcta].concat(malas));
-  }
-
-  function topicById(id) {
-    for (var i = 0; i < TOPICS.length; i++) if (TOPICS[i].id === id) return TOPICS[i];
-    return null;
   }
 
   /* ---------- Guardado local ---------- */
@@ -215,15 +343,17 @@
     try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { /* sin guardado disponible */ }
   }
 
-  function stats(topicIds) {
-    var answered = 0, correct = 0, total = 0;
-    QUESTIONS.forEach(function (q) {
-      if (topicIds.indexOf(q.topicId) < 0) return;
-      total++;
+  function poolDe(ids) {
+    return QUESTIONS.filter(function (q) { return cruza(q.temas, ids); });
+  }
+
+  function stats(ids) {
+    var answered = 0, correct = 0, pool = poolDe(ids);
+    pool.forEach(function (q) {
       var r = store.progreso[q.id];
       if (r) { answered++; if (r.ok) correct++; }
     });
-    return { answered: answered, correct: correct, total: total, pct: answered ? Math.round((correct / answered) * 100) : 0 };
+    return { answered: answered, correct: correct, total: pool.length, pct: answered ? Math.round((correct / answered) * 100) : 0 };
   }
 
   function badgeClass(st) {
@@ -232,36 +362,50 @@
   }
 
   function seleccionValida() {
-    return store.seleccion.filter(function (id) {
-      var t = topicById(id);
-      return t && t.preguntas.length;
-    });
+    return store.seleccion.filter(function (id) { return SUB[id] && SUB[id].total; });
   }
 
   /* ---------- Pantalla: Elige tus temas ---------- */
+  var homeScroll = 0;
+
+  function topicHTML(t, sel) {
+    var st = stats([t.id]);
+    return '<button class="topic" data-action="tema" data-id="' + esc(t.id) + '" aria-pressed="' + (sel.indexOf(t.id) >= 0) + '"' +
+      (t.total ? "" : " disabled") + ">" +
+      '<span class="topic-circle">' + artHTML(t.icono, t.color) +
+      '<span class="badge ' + badgeClass(st) + '">' + st.pct + "%</span></span>" +
+      '<span class="topic-name">' + esc(t.nombre) + "</span>" +
+      '<span class="topic-count">' + st.answered + "/" + st.total + "</span></button>";
+  }
+
+  function idsDeGrupo(g) {
+    return g.subtemas.filter(function (t) { return t.total; }).map(function (t) { return t.id; });
+  }
+
   function renderHome() {
     session = null;
-    if (!TOPICS.length) {
+    if (!QUESTIONS.length) {
       app.innerHTML = '<section class="screen"><header class="home-head"><h1>Elige tus temas</h1></header>' +
-        '<div class="scroll"><p class="hint">Todavía no hay temas. Agrégalos en el archivo preguntas.js.</p></div></section>';
+        '<div class="scroll"><p class="hint">Todavía no hay preguntas. Agrégalas en la carpeta "preguntas".</p></div></section>';
       return;
     }
     var sel = seleccionValida();
+    var secciones = GRUPOS.map(function (g) {
+      var ids = idsDeGrupo(g);
+      if (!ids.length) return "";
+      var una = GRUPOS.length === 1;
+      return '<section class="group">' +
+        (una ? "" : '<div class="group-head"><div class="group-title"><h2>' + esc(g.nombre) + "</h2>" +
+          "<span>" + poolDe(ids).length + " preguntas</span></div>" +
+          '<button class="pill" data-action="grupo" data-id="' + esc(g.id) + '">' +
+          (ids.every(function (id) { return sel.indexOf(id) >= 0; }) ? "Quitar todos" : "Elegir todos") + "</button></div>") +
+        '<div class="topic-grid">' + g.subtemas.map(function (t) { return topicHTML(t, sel); }).join("") + "</div></section>";
+    }).join("");
     app.innerHTML =
       '<section class="screen">' +
       '<header class="home-head"><h1>Elige tus temas</h1>' +
       '<button class="icon-btn" data-action="ajustes" aria-label="Ajustes">' + UI.gear + "</button></header>" +
-      '<div class="scroll"><div class="topic-grid">' +
-      TOPICS.map(function (t) {
-        var st = stats([t.id]);
-        return '<button class="topic" data-action="tema" data-id="' + esc(t.id) + '" aria-pressed="' + (sel.indexOf(t.id) >= 0) + '"' +
-          (t.preguntas.length ? "" : " disabled") + ">" +
-          '<span class="topic-circle">' + artHTML(t.icono) +
-          '<span class="badge ' + badgeClass(st) + '">' + st.pct + "%</span></span>" +
-          '<span class="topic-name">' + esc(t.nombre) + "</span>" +
-          '<span class="topic-count">' + st.answered + "/" + st.total + "</span></button>";
-      }).join("") +
-      "</div></div>" +
+      '<div class="scroll" id="home-scroll">' + secciones + "</div>" +
       '<footer class="dock">' +
       '<p class="hint" id="hint"></p>' +
       '<div class="score-row"><strong>Puntaje promedio</strong><span class="mini" id="score-mini"></span>' +
@@ -269,21 +413,26 @@
       '<div class="bar"><i id="score-bar"></i></div>' +
       '<button class="btn btn-primary" data-action="empezar" id="btn-empezar">Comienza a aprender</button>' +
       "</footer></section>";
+    document.getElementById("home-scroll").scrollTop = homeScroll;
     updateHomeFooter();
   }
 
   function updateHomeFooter() {
     var sel = seleccionValida();
-    var ids = sel.length ? sel : TOPICS.map(function (t) { return t.id; });
-    var st = stats(ids);
-    var one = sel.length === 1 ? topicById(sel[0]) : null;
-    document.getElementById("score-mini").innerHTML = one ? artHTML(one.icono).replace('class="art"', 'class="art mini-art"') : "";
+    var st = stats(sel.length ? sel : SUBTEMAS.map(function (t) { return t.id; }));
+    var one = sel.length === 1 ? SUB[sel[0]] : null;
+    document.getElementById("score-mini").innerHTML = one ? artHTML(one.icono, one.color) : "";
     document.getElementById("score-val").textContent = st.pct + "%";
     document.getElementById("score-bar").style.width = st.pct + "%";
     document.getElementById("btn-empezar").disabled = !sel.length;
-    var hint = document.getElementById("hint");
-    hint.textContent = sel.length ? "" : "Toca uno o varios temas para empezar.";
-    hint.hidden = !!sel.length;
+    document.getElementById("hint").textContent = sel.length
+      ? (sel.length === 1 ? SUB[sel[0]].nombre : sel.length + " temas") + " · " + st.total + " preguntas"
+      : "Toca uno o varios temas para empezar.";
+    GRUPOS.forEach(function (g) {
+      var b = app.querySelector('[data-action="grupo"][data-id="' + g.id + '"]');
+      var ids = idsDeGrupo(g);
+      if (b) b.textContent = ids.every(function (id) { return sel.indexOf(id) >= 0; }) ? "Quitar todos" : "Elegir todos";
+    });
   }
 
   function toggleTopic(btn) {
@@ -295,12 +444,23 @@
     updateHomeFooter();
   }
 
-  /* ---------- Sesión de preguntas ---------- */
-  var session = null;
-
-  function poolDe(topicIds) {
-    return QUESTIONS.filter(function (q) { return topicIds.indexOf(q.topicId) >= 0; });
+  function toggleGrupo(gid) {
+    var g = GRUPOS.filter(function (x) { return x.id === gid; })[0];
+    if (!g) return;
+    var ids = idsDeGrupo(g);
+    var todos = ids.every(function (id) { return store.seleccion.indexOf(id) >= 0; });
+    store.seleccion = store.seleccion.filter(function (id) { return ids.indexOf(id) < 0; });
+    if (!todos) store.seleccion = store.seleccion.concat(ids);
+    ids.forEach(function (id) {
+      var b = app.querySelector('.topic[data-id="' + id + '"]');
+      if (b) b.setAttribute("aria-pressed", String(!todos));
+    });
+    save();
+    updateHomeFooter();
   }
+
+  /* ---------- Estaciones ---------- */
+  var session = null;
 
   function pendientesDe(pool) {
     return pool.filter(function (q) { return !store.ciclo[q.id]; });
@@ -314,13 +474,17 @@
     return out;
   }
 
+  function totalEstaciones(pool) {
+    return Math.max(1, Math.min(store.estaciones, Math.floor(pool.length / MIN_POR_ESTACION)));
+  }
+
   /*
     Arma una estación: una parte de las preguntas que aún no salen en esta ronda.
     A veces se enfoca en uno o dos apartados (p. ej. Morfología) y a veces mezcla todo.
     Además mete algunas preguntas que fallaste en estaciones anteriores.
   */
   function armarEstacion(pool) {
-    var total = Math.min(store.estaciones, pool.length);
+    var total = totalEstaciones(pool);
     var pendientes = pendientesDe(pool);
     if (!pendientes.length) {
       pool.forEach(function (q) { delete store.ciclo[q.id]; });
@@ -333,7 +497,7 @@
     var apartados = [];
     pendientes.forEach(function (q) { if (apartados.indexOf(q.apartado) < 0) apartados.push(q.apartado); });
     var elegidas;
-    if (apartados.length > 1 && Math.random() < 0.65) {
+    if (total > 1 && apartados.length > 1 && Math.random() < 0.65) {
       var foco = shuffle(apartados.slice()).slice(0, apartados.length > 2 && Math.random() < 0.5 ? 2 : 1);
       var dentro = shuffle(pendientes.filter(function (q) { return foco.indexOf(q.apartado) >= 0; }));
       var fuera = shuffle(pendientes.filter(function (q) { return foco.indexOf(q.apartado) < 0; }));
@@ -354,8 +518,8 @@
     return { items: shuffle(items), numero: numero, total: total };
   }
 
-  function startSession(topicIds, soloIds) {
-    var pool = poolDe(topicIds);
+  function startSession(ids, soloIds) {
+    var pool = poolDe(ids);
     if (!pool.length) return;
     var est;
     if (soloIds) {
@@ -373,7 +537,7 @@
     est.items.forEach(function (it) { it.opciones = armarOpciones(it.q); });
     session = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      topicIds: topicIds,
+      topicIds: ids,
       items: est.items,
       numero: est.numero,
       total: est.total,
@@ -388,16 +552,27 @@
     renderQuestion();
   }
 
+  function etiquetaEstacion(s) {
+    if (s.esRepaso) return "Repaso";
+    return s.total > 1 ? "Estación " + s.numero + " de " + s.total : "Estación única";
+  }
+
+  function subDe(q, s) {
+    for (var i = 0; i < q.temas.length; i++) if (s.topicIds.indexOf(q.temas[i]) >= 0) return SUB[q.temas[i]];
+    return SUB[q.topicId];
+  }
+
+  /* ---------- Pantalla: Pregunta ---------- */
   function renderQuestion() {
-    var s = session, it = s.items[s.i], q = it.q, topic = topicById(q.topicId);
+    var s = session, it = s.items[s.i], q = it.q, sub = subDe(q, s);
     s.elegido = null;
     s.enviado = false;
-    var figura = q.imagen ? artHTML(q.imagen, true) : artHTML(topic.icono);
+    var figura = q.imagen ? artHTML(q.imagen, null, true) : artHTML(sub.icono, sub.color);
     app.innerHTML =
       '<section class="screen">' +
       '<header class="quiz-head">' +
       '<button class="icon-btn back" data-action="inicio" aria-label="Volver a los temas">' + UI.back + "</button>" +
-      '<div class="quiz-title"><b>' + esc(topic.nombre) + "</b><small>" + etiquetaEstacion(s) + " · Pregunta " + (s.i + 1) + " de " + s.items.length + "</small></div>" +
+      '<div class="quiz-title"><b>' + esc(sub.nombre) + "</b><small>" + etiquetaEstacion(s) + " · Pregunta " + (s.i + 1) + " de " + s.items.length + "</small></div>" +
       "<span></span></header>" +
       '<div class="progress"><i id="prog" style="width:' + (s.i / s.items.length) * 100 + '%"></i></div>' +
       '<div class="scroll" id="scroll">' +
@@ -448,7 +623,7 @@
     if (!(q.id in s.primero)) s.primero[q.id] = ok;
     if (!ok && s.fallidas.indexOf(q) < 0) s.fallidas.push(q);
 
-    // Si la fallas, vuelve a salir más adelante en esta misma estación.
+    // Si la fallas, vuelve a salir más adelante en esta misma estación (con otras opciones).
     s.veces[q.id] = (s.veces[q.id] || 0) + 1;
     var vuelve = !ok && s.veces[q.id] < MAX_VECES;
     if (vuelve) {
@@ -458,9 +633,8 @@
 
     app.querySelectorAll(".opt").forEach(function (b) {
       var k = Number(b.getAttribute("data-k"));
-      var esCorrecta = it.opciones[k] === q.correcta;
       b.disabled = true;
-      if (esCorrecta) {
+      if (it.opciones[k] === q.correcta) {
         b.classList.add("is-correct");
         b.querySelector(".dot").innerHTML = UI.check;
       } else if (k === s.elegido) {
@@ -493,10 +667,6 @@
   }
 
   /* ---------- Pantalla: Resultados ---------- */
-  function etiquetaEstacion(s) {
-    return s.esRepaso ? "Repaso" : "Estación " + s.numero + " de " + s.total;
-  }
-
   function renderResults() {
     var s = session;
     var ids = Object.keys(s.primero);
@@ -506,7 +676,7 @@
     var fallas = s.fallidas;
     var rondaCompleta = !pendientesDe(poolDe(s.topicIds)).length;
     var titulo = pct >= 90 ? "¡Excelente!" : pct >= 70 ? "¡Muy bien!" : pct >= 50 ? "Vas por buen camino" : "Sigue practicando";
-    var resumen = (s.esRepaso ? "Repaso terminado" : "Estación " + s.numero + " de " + s.total + " terminada") +
+    var resumen = (s.esRepaso ? "Repaso terminado" : s.total > 1 ? "Estación " + s.numero + " de " + s.total + " terminada" : "Estación terminada") +
       "<br>" + bien + " de " + total + " correctas a la primera";
     if (!s.esRepaso && rondaCompleta) resumen += "<br>Ya viste todas las preguntas de esta ronda.";
     var R = 66, C = 2 * Math.PI * R;
@@ -552,7 +722,7 @@
         return '<button data-action="estaciones" data-v="' + v + '" aria-pressed="' + (store.estaciones === v) + '">' + v + "</button>";
       }).join("") + "</div>" +
       '<p class="note">Cada estación trae una parte distinta de las preguntas, revueltas por apartado. ' +
-      "Las que falles vuelven a salir en la misma estación y en las siguientes.</p></div>" +
+      "Las que falles vuelven a salir en la misma estación y en las siguientes. Si eliges pocas preguntas, se usan menos estaciones.</p></div>" +
       '<div class="field"><span>Progreso</span>' +
       (confirmando
         ? '<div class="confirm"><p>Se borrarán los porcentajes de todos los temas.</p><div class="row">' +
@@ -565,12 +735,12 @@
   }
 
   function openZoom() {
-    var q = session && session.items[session.i].q;
-    if (!q) return;
+    if (!session) return;
+    var q = session.items[session.i].q, sub = subDe(q, session);
     closeOverlay();
-    var src = q.imagen || topicById(q.topicId).icono;
     document.body.insertAdjacentHTML("beforeend",
-      '<div class="overlay zoom-view" id="overlay" data-backdrop data-action="cerrar">' + artHTML(src, !!q.imagen) +
+      '<div class="overlay zoom-view" id="overlay" data-backdrop data-action="cerrar">' +
+      (q.imagen ? artHTML(q.imagen, null, true) : artHTML(sub.icono, sub.color)) +
       '<button class="icon-btn" data-action="cerrar" aria-label="Cerrar">' + UI.close + "</button></div>");
   }
 
@@ -582,7 +752,12 @@
     if (!el) return;
     switch (el.getAttribute("data-action")) {
       case "tema": toggleTopic(el); break;
-      case "empezar": startSession(seleccionValida()); break;
+      case "grupo": toggleGrupo(el.getAttribute("data-id")); break;
+      case "empezar":
+        var hs = document.getElementById("home-scroll");
+        if (hs) homeScroll = hs.scrollTop;
+        startSession(seleccionValida());
+        break;
       case "ajustes": openSettings(false); break;
       case "opcion": choose(Number(el.getAttribute("data-k"))); break;
       case "principal": if (session && session.enviado) next(); else submit(); break;
