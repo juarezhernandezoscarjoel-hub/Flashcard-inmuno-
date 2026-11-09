@@ -2,7 +2,9 @@
   "use strict";
 
   var STORE_KEY = "inmuno-flashcards-v1";
-  var POR_SESION = [5, 10, 20, "todas"];
+  var ESTACIONES = [2, 3, 4, 5];   // en cuántas estaciones se reparten las preguntas
+  var HUECO_REINTENTO = 3;          // una fallada vuelve a salir después de ~3 preguntas
+  var MAX_VECES = 3;                // veces máximas que sale la misma pregunta en una estación
   var app = document.getElementById("app");
 
   /* ---------- Iconos de la interfaz ---------- */
@@ -128,6 +130,7 @@
     return {
       id: topicId + ":" + hash(String(p.pregunta)),
       topicId: topicId,
+      apartado: p.apartado ? String(p.apartado).trim() : "General",
       texto: String(p.pregunta),
       correcta: correcta,
       opciones: opciones,
@@ -159,7 +162,8 @@
     try { d = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {}; } catch (e) { d = {}; }
     return {
       progreso: d.progreso && typeof d.progreso === "object" ? d.progreso : {},
-      porSesion: POR_SESION.indexOf(d.porSesion) >= 0 ? d.porSesion : 10,
+      estaciones: ESTACIONES.indexOf(d.estaciones) >= 0 ? d.estaciones : 3,
+      ciclo: d.ciclo && typeof d.ciclo === "object" ? d.ciclo : {},
       seleccion: Array.isArray(d.seleccion) ? d.seleccion : []
     };
   }
@@ -251,22 +255,92 @@
   /* ---------- Sesión de preguntas ---------- */
   var session = null;
 
+  function poolDe(topicIds) {
+    return QUESTIONS.filter(function (q) { return topicIds.indexOf(q.topicId) >= 0; });
+  }
+
+  function pendientesDe(pool) {
+    return pool.filter(function (q) { return !store.ciclo[q.id]; });
+  }
+
+  function tomar(lista, cuantas, yaElegidas) {
+    var out = [];
+    for (var i = 0; i < lista.length && out.length < cuantas; i++) {
+      if (yaElegidas.indexOf(lista[i]) < 0) out.push(lista[i]);
+    }
+    return out;
+  }
+
+  /*
+    Arma una estación: una parte de las preguntas que aún no salen en esta ronda.
+    A veces se enfoca en uno o dos apartados (p. ej. Morfología) y a veces mezcla todo.
+    Además mete algunas preguntas que fallaste en estaciones anteriores.
+  */
+  function armarEstacion(pool) {
+    var total = Math.min(store.estaciones, pool.length);
+    var pendientes = pendientesDe(pool);
+    if (!pendientes.length) {
+      pool.forEach(function (q) { delete store.ciclo[q.id]; });
+      pendientes = pool.slice();
+    }
+    var vistas = pool.length - pendientes.length;
+    var numero = Math.min(total, Math.round(vistas / (pool.length / total)) + 1);
+    var tam = Math.ceil(pendientes.length / (total - numero + 1));
+
+    var apartados = [];
+    pendientes.forEach(function (q) { if (apartados.indexOf(q.apartado) < 0) apartados.push(q.apartado); });
+    var elegidas;
+    if (apartados.length > 1 && Math.random() < 0.65) {
+      var foco = shuffle(apartados.slice()).slice(0, apartados.length > 2 && Math.random() < 0.5 ? 2 : 1);
+      var dentro = shuffle(pendientes.filter(function (q) { return foco.indexOf(q.apartado) >= 0; }));
+      var fuera = shuffle(pendientes.filter(function (q) { return foco.indexOf(q.apartado) < 0; }));
+      elegidas = tomar(dentro, Math.ceil(tam * 0.7), []);
+      elegidas = elegidas.concat(tomar(fuera, tam - elegidas.length, elegidas));
+      elegidas = elegidas.concat(tomar(dentro, tam - elegidas.length, elegidas));
+    } else {
+      elegidas = shuffle(pendientes.slice()).slice(0, tam);
+    }
+
+    var repasos = shuffle(pool.filter(function (q) {
+      var r = store.progreso[q.id];
+      return r && r.repasar && elegidas.indexOf(q) < 0;
+    })).slice(0, Math.max(1, Math.ceil(tam / 3)));
+
+    var items = elegidas.map(function (q) { return { q: q, etiqueta: "" }; })
+      .concat(repasos.map(function (q) { return { q: q, etiqueta: "Repaso" }; }));
+    return { items: shuffle(items), numero: numero, total: total };
+  }
+
   function startSession(topicIds, soloIds) {
-    var pool = QUESTIONS.filter(function (q) {
-      return topicIds.indexOf(q.topicId) >= 0 && (!soloIds || soloIds.indexOf(q.id) >= 0);
-    });
+    var pool = poolDe(topicIds);
     if (!pool.length) return;
-    // Primero las nuevas y las que fallaste; luego las que ya dominas.
-    var prio = function (q) { var r = store.progreso[q.id]; return r && r.ok ? 1 : 0; };
-    pool = shuffle(pool).sort(function (a, b) { return prio(a) - prio(b); });
-    var cuantas = soloIds || store.porSesion === "todas" ? pool.length : Math.min(store.porSesion, pool.length);
+    var est;
+    if (soloIds) {
+      est = {
+        items: shuffle(pool.filter(function (q) { return soloIds.indexOf(q.id) >= 0; }))
+          .map(function (q) { return { q: q, etiqueta: "Repaso" }; }),
+        numero: 0,
+        total: 0
+      };
+    } else {
+      est = armarEstacion(pool);
+      save();
+    }
+    if (!est.items.length) return;
+    est.items.forEach(function (it) { it.opciones = shuffle(it.q.opciones.slice()); });
     session = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       topicIds: topicIds,
-      items: shuffle(pool.slice(0, cuantas)).map(function (q) { return { q: q, opciones: shuffle(q.opciones.slice()) }; }),
+      items: est.items,
+      numero: est.numero,
+      total: est.total,
+      esRepaso: !!soloIds,
       i: 0,
       elegido: null,
       enviado: false,
-      resultados: []
+      veces: {},
+      primero: {},
+      fallidas: []
     };
     renderQuestion();
   }
@@ -280,12 +354,14 @@
       '<section class="screen">' +
       '<header class="quiz-head">' +
       '<button class="icon-btn back" data-action="inicio" aria-label="Volver a los temas">' + UI.back + "</button>" +
-      '<div class="quiz-title"><b>' + esc(topic.nombre) + "</b><small>Pregunta " + (s.i + 1) + " de " + s.items.length + "</small></div>" +
+      '<div class="quiz-title"><b>' + esc(topic.nombre) + "</b><small>" + etiquetaEstacion(s) + " · Pregunta " + (s.i + 1) + " de " + s.items.length + "</small></div>" +
       "<span></span></header>" +
       '<div class="progress"><i id="prog" style="width:' + (s.i / s.items.length) * 100 + '%"></i></div>' +
       '<div class="scroll" id="scroll">' +
       '<div class="figure">' + figura +
       '<button class="icon-btn zoom" data-action="zoom" aria-label="Ampliar imagen">' + UI.zoom + "</button></div>" +
+      '<div class="chips"><span class="chip">' + esc(q.apartado) + "</span>" +
+      (it.etiqueta ? '<span class="chip again">' + esc(it.etiqueta) + "</span>" : "") + "</div>" +
       '<p class="question">' + esc(q.texto) + "</p>" +
       '<div class="options" role="radiogroup" aria-label="Opciones de respuesta">' +
       it.opciones.map(function (o, k) {
@@ -315,10 +391,27 @@
     if (s.elegido == null || s.enviado) return;
     s.enviado = true;
     var ok = it.opciones[s.elegido] === q.correcta;
-    var prev = store.progreso[q.id];
-    store.progreso[q.id] = { ok: ok, veces: (prev && prev.veces ? prev.veces : 0) + 1 };
+
+    // Progreso guardado: si la fallas, queda marcada para repasar en otra estación.
+    // Se desmarca cuando la contestas bien en una estación distinta a la que la fallaste.
+    var prev = store.progreso[q.id] || {};
+    var rec = { ok: ok, veces: (prev.veces || 0) + 1, repasar: !!prev.repasar, fallo: prev.fallo || null };
+    if (!ok) { rec.repasar = true; rec.fallo = s.id; }
+    else if (rec.repasar && rec.fallo !== s.id) { rec.repasar = false; rec.fallo = null; }
+    store.progreso[q.id] = rec;
+    store.ciclo[q.id] = true;
     save();
-    s.resultados.push({ q: q, ok: ok });
+
+    if (!(q.id in s.primero)) s.primero[q.id] = ok;
+    if (!ok && s.fallidas.indexOf(q) < 0) s.fallidas.push(q);
+
+    // Si la fallas, vuelve a salir más adelante en esta misma estación.
+    s.veces[q.id] = (s.veces[q.id] || 0) + 1;
+    var vuelve = !ok && s.veces[q.id] < MAX_VECES;
+    if (vuelve) {
+      var pos = Math.min(s.items.length, s.i + 1 + HUECO_REINTENTO);
+      s.items.splice(pos, 0, { q: q, etiqueta: "Otra vez", opciones: shuffle(q.opciones.slice()) });
+    }
 
     app.querySelectorAll(".opt").forEach(function (b) {
       var k = Number(b.getAttribute("data-k"));
@@ -336,9 +429,12 @@
     var fb = document.getElementById("feedback");
     fb.innerHTML = '<div class="feedback">' +
       (ok ? '<p class="fb-title ok">¡Correcto! ¡Bien hecho!</p>' : '<p class="fb-title bad">Respuesta incorrecta</p>') +
+      (vuelve ? '<p class="fb-note">Te la vuelvo a preguntar más adelante.</p>' : "") +
       (q.explicacion ? '<div class="explain"><span>Explicación</span>' + esc(q.explicacion) + "</div>" : "") +
       "</div>";
     document.getElementById("prog").style.width = ((s.i + 1) / s.items.length) * 100 + "%";
+    var sub = app.querySelector(".quiz-title small");
+    if (sub) sub.textContent = etiquetaEstacion(s) + " · Pregunta " + (s.i + 1) + " de " + s.items.length;
     var main = document.getElementById("btn-main");
     main.textContent = s.i + 1 < s.items.length ? "Próxima pregunta" : "Ver resultados";
     main.focus({ preventScroll: true });
@@ -354,13 +450,22 @@
   }
 
   /* ---------- Pantalla: Resultados ---------- */
+  function etiquetaEstacion(s) {
+    return s.esRepaso ? "Repaso" : "Estación " + s.numero + " de " + s.total;
+  }
+
   function renderResults() {
     var s = session;
-    var total = s.resultados.length;
-    var bien = s.resultados.filter(function (r) { return r.ok; }).length;
+    var ids = Object.keys(s.primero);
+    var total = ids.length;
+    var bien = ids.filter(function (id) { return s.primero[id]; }).length;
     var pct = total ? Math.round((bien / total) * 100) : 0;
-    var fallas = s.resultados.filter(function (r) { return !r.ok; });
+    var fallas = s.fallidas;
+    var rondaCompleta = !pendientesDe(poolDe(s.topicIds)).length;
     var titulo = pct >= 90 ? "¡Excelente!" : pct >= 70 ? "¡Muy bien!" : pct >= 50 ? "Vas por buen camino" : "Sigue practicando";
+    var resumen = (s.esRepaso ? "Repaso terminado" : "Estación " + s.numero + " de " + s.total + " terminada") +
+      "<br>" + bien + " de " + total + " correctas a la primera";
+    if (!s.esRepaso && rondaCompleta) resumen += "<br>Ya viste todas las preguntas de esta ronda.";
     var R = 66, C = 2 * Math.PI * R;
     app.innerHTML =
       '<section class="screen">' +
@@ -373,17 +478,17 @@
       '<circle cx="75" cy="75" r="' + R + '" fill="none" stroke="var(--ok)" stroke-width="12" stroke-linecap="round" stroke-dasharray="' +
       n((C * pct) / 100) + " " + n(C) + '"/></svg>' +
       "<b>" + pct + "%</b></div>" +
-      "<h2>" + titulo + "</h2><p>" + bien + " de " + total + " correctas</p></div>" +
+      "<h2>" + titulo + "</h2><p>" + resumen + "</p></div>" +
       (fallas.length
         ? '<div class="review"><h3>Para repasar</h3>' +
-          fallas.map(function (r) {
-            return '<div class="review-item"><span class="q">' + esc(r.q.texto) + '</span><span class="a">' + esc(r.q.correcta) + "</span></div>";
+          fallas.map(function (q) {
+            return '<div class="review-item"><span class="q">' + esc(q.texto) + '</span><span class="a">' + esc(q.correcta) + "</span></div>";
           }).join("") + "</div>"
         : "") +
       "</div>" +
       '<footer class="dock">' +
       (fallas.length ? '<button class="btn btn-soft" data-action="repasar">Repasar errores (' + fallas.length + ")</button>" : "") +
-      '<button class="btn btn-primary" data-action="inicio">Volver a los temas</button>' +
+      '<button class="btn btn-primary" data-action="siguiente">' + (rondaCompleta ? "Empezar nueva ronda" : "Siguiente estación") + "</button>" +
       "</footer></section>";
   }
 
@@ -399,10 +504,12 @@
       '<div class="overlay" id="overlay" data-backdrop>' +
       '<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="aj-titulo">' +
       '<h2 id="aj-titulo">Ajustes</h2>' +
-      '<div class="field"><span>Preguntas por sesión</span><div class="seg">' +
-      POR_SESION.map(function (v) {
-        return '<button data-action="por-sesion" data-v="' + v + '" aria-pressed="' + (store.porSesion === v) + '">' + (v === "todas" ? "Todas" : v) + "</button>";
-      }).join("") + "</div></div>" +
+      '<div class="field"><span>Dividir las preguntas en estaciones</span><div class="seg">' +
+      ESTACIONES.map(function (v) {
+        return '<button data-action="estaciones" data-v="' + v + '" aria-pressed="' + (store.estaciones === v) + '">' + v + "</button>";
+      }).join("") + "</div>" +
+      '<p class="note">Cada estación trae una parte distinta de las preguntas, revueltas por apartado. ' +
+      "Las que falles vuelven a salir en la misma estación y en las siguientes.</p></div>" +
       '<div class="field"><span>Progreso</span>' +
       (confirmando
         ? '<div class="confirm"><p>Se borrarán los porcentajes de todos los temas.</p><div class="row">' +
@@ -439,12 +546,12 @@
       case "zoom": openZoom(); break;
       case "inicio": renderHome(); break;
       case "repasar":
-        startSession(session.topicIds, session.resultados.filter(function (r) { return !r.ok; }).map(function (r) { return r.q.id; }));
+        startSession(session.topicIds, session.fallidas.map(function (q) { return q.id; }));
         break;
+      case "siguiente": startSession(session.topicIds); break;
       case "cerrar": closeOverlay(); break;
-      case "por-sesion":
-        var v = el.getAttribute("data-v");
-        store.porSesion = v === "todas" ? v : Number(v);
+      case "estaciones":
+        store.estaciones = Number(el.getAttribute("data-v"));
         save();
         el.parentNode.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b === el)); });
         break;
@@ -452,6 +559,7 @@
       case "reset-no": openSettings(false); break;
       case "reset-si":
         store.progreso = {};
+        store.ciclo = {};
         save();
         if (!session) renderHome();
         openSettings(false);
